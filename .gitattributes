@@ -1,0 +1,13 @@
+# Normaliza as quebras de linha: LF no repositório, nativo no checkout.
+* text=auto
+
+*.java   text diff=java
+*.xml    text
+*.md     text
+*.csv    text
+*.html   text
+*.yml    text
+
+*.png    binary
+*.jpg    binary
+*.pdf    binary

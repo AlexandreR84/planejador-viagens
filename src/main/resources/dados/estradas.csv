@@ -1,0 +1,29 @@
+# Arestas do grafo (estradas de mão dupla).
+# Formato: origem;destino;distancia_km;tempo_min;pedagio_rs
+# custo = distancia_km * 0,55 (combustível) + pedagio_rs   -> calculado ao carregar.
+# ATENÇÃO: valores APROXIMADOS, adotados para fins didáticos. Não substituem um GPS.
+Uberlândia;Araguari;33;30;0
+Uberlândia;Uberaba;108;80;14.90
+Uberlândia;Tupaciguara;71;55;0
+Uberlândia;Ituiutaba;140;105;0
+Uberlândia;Monte Carmelo;100;75;0
+Tupaciguara;Itumbiara;45;40;0
+Tupaciguara;Ituiutaba;80;65;0
+Ituiutaba;Itumbiara;100;80;0
+Ituiutaba;Frutal;130;100;0
+Frutal;Uberaba;195;150;12.00
+Araguari;Catalão;110;80;0
+Catalão;Goiânia;260;185;30.00
+Itumbiara;Goiânia;205;150;22.00
+Monte Carmelo;Patrocínio;65;50;0
+Patrocínio;Araxá;100;75;0
+Patrocínio;Patos de Minas;150;110;0
+Uberaba;Araxá;120;90;12.40
+Araxá;Patos de Minas;160;120;0
+Araxá;Belo Horizonte;370;270;45.00
+Patos de Minas;Belo Horizonte;400;290;45.00
+Uberaba;Ribeirão Preto;170;125;20.00
+Uberaba;Franca;185;140;15.00
+Franca;Ribeirão Preto;90;65;12.00
+Ribeirão Preto;São Paulo;315;225;65.00
+Franca;São Paulo;400;285;78.00

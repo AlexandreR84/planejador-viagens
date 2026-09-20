@@ -1,0 +1,19 @@
+# Vértices do grafo: localidades do Triângulo Mineiro, Alto Paranaíba e região.
+# Formato: nome;uf;latitude;longitude   (coordenadas usadas só para desenhar o mapa)
+Uberlândia;MG;-18.92;-48.28
+Araguari;MG;-18.65;-48.19
+Uberaba;MG;-19.75;-47.93
+Tupaciguara;MG;-18.59;-49.05
+Ituiutaba;MG;-18.97;-49.46
+Frutal;MG;-20.03;-48.94
+Monte Carmelo;MG;-18.73;-47.50
+Patrocínio;MG;-18.94;-46.99
+Araxá;MG;-19.59;-46.94
+Patos de Minas;MG;-18.58;-46.52
+Belo Horizonte;MG;-19.92;-43.94
+Itumbiara;GO;-18.42;-49.22
+Catalão;GO;-18.17;-47.94
+Goiânia;GO;-16.68;-49.25
+Ribeirão Preto;SP;-21.18;-47.81
+Franca;SP;-20.54;-47.40
+São Paulo;SP;-23.55;-46.63

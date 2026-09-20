@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planejador Inteligente de Viagens</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --painel: #ffffff; --texto: #1e2430; --suave: #667085; --borda: #d9dde5;
+    --azul: #1f5fbf; --verde: #1a8f4d; --vermelho: #c62828; --cinza: #9aa3b2; --amarelo: #f5b400;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --painel: #1b2029; --texto: #e6e9ef; --suave: #9aa3b2; --borda: #303847;
+      --azul: #6ea2f5; --verde: #46c47f; --vermelho: #ef6b6b; --cinza: #5b6577; --amarelo: #f5c542;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--texto); }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--borda); background: var(--painel); }
+  header h1 { margin: 0; font-size: 18px; }
+  header p { margin: 2px 0 0; color: var(--suave); font-size: 13px; }
+  main { display: grid; grid-template-columns: 360px 1fr; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .painel { background: var(--painel); border: 1px solid var(--borda); border-radius: 10px; padding: 14px; }
+  .painel + .painel { margin-top: 12px; }
+  h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); }
+  label { display: block; font-size: 13px; color: var(--suave); margin: 8px 0 3px; }
+  select, input[type=number] { width: 100%; padding: 7px 8px; border: 1px solid var(--borda); border-radius: 6px; background: var(--bg); color: var(--texto); font: inherit; }
+  .linha { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .opcoes { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+  .opcoes label { display: flex; align-items: center; gap: 5px; margin: 0; color: var(--texto); font-size: 14px; }
+  button { margin-top: 12px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: var(--azul); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button.sec { background: transparent; color: var(--azul); border: 1px solid var(--borda); margin-top: 8px; font-weight: 500; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { border: 1px solid var(--vermelho); color: var(--vermelho); border-radius: 999px; padding: 2px 10px; font-size: 13px; cursor: pointer; }
+  .tag:hover { background: var(--vermelho); color: #fff; }
+  .vazio { color: var(--suave); font-size: 13px; }
+  .dica { color: var(--suave); font-size: 12px; margin: 8px 0 0; }
+  #mapa { width: 100%; height: auto; display: block; }
+  #mapa .estrada { stroke: var(--cinza); stroke-width: 1.5; }
+  #mapa .estrada.rota { stroke: var(--azul); stroke-width: 5; stroke-linecap: round; }
+  #mapa .estrada.bloq { stroke: var(--vermelho); stroke-dasharray: 6 5; stroke-width: 2.5; }
+  #mapa .toque { stroke: transparent; stroke-width: 14; cursor: pointer; }
+  #mapa .no { fill: var(--painel); stroke: var(--cinza); stroke-width: 2; cursor: pointer; }
+  #mapa .no.rota { stroke: var(--azul); stroke-width: 3.5; }
+  #mapa .no.origem { fill: var(--verde); stroke: var(--verde); }
+  #mapa .no.destino { fill: var(--amarelo); stroke: var(--amarelo); }
+  #mapa .no.bloq { fill: var(--vermelho); stroke: var(--vermelho); }
+  #mapa text { fill: var(--texto); font-size: 11.5px; pointer-events: none; paint-order: stroke; stroke: var(--painel); stroke-width: 3px; }
+  .resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0; }
+  .resumo div { background: var(--bg); border-radius: 8px; padding: 8px; text-align: center; }
+  .resumo b { display: block; font-size: 17px; }
+  .resumo span { font-size: 12px; color: var(--suave); }
+  .caminho { margin: 6px 0; }
+  .alt { border: 1px solid var(--borda); border-radius: 8px; padding: 8px 10px; margin-top: 8px; cursor: pointer; font-size: 14px; }
+  .alt.ativa { border-color: var(--azul); }
+  .erro { color: var(--vermelho); font-weight: 600; }
+  .aviso { color: var(--suave); font-size: 13px; }
+  ol.ordem { margin: 4px 0 0; padding-left: 20px; columns: 2; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Planejador Inteligente de Viagens</h1>
+  <p>Algoritmos em Grafos &mdash; BFS, DFS e Dijkstra sobre uma rede de cidades</p>
+</header>
+
+<main>
+  <section>
+    <div class="painel">
+      <h2>Consulta</h2>
+      <label for="origem">Origem</label>
+      <select id="origem"></select>
+      <label for="destino">Destino</label>
+      <select id="destino"></select>
+
+      <label>Algoritmo</label>
+      <div class="opcoes">
+        <label><input type="radio" name="alg" value="DIJKSTRA" checked> Dijkstra (melhor rota)</label>
+        <label><input type="radio" name="alg" value="BFS"> BFS (menos trechos)</label>
+        <label><input type="radio" name="alg" value="DFS"> DFS (todos os caminhos)</label>
+      </div>
+
+      <label>Critério de preferência</label>
+      <div class="opcoes">
+        <label><input type="radio" name="crit" value="DISTANCIA" checked> Distância</label>
+        <label><input type="radio" name="crit" value="TEMPO"> Tempo</label>
+        <label><input type="radio" name="crit" value="CUSTO"> Custo</label>
+      </div>
+
+      <button id="calcular">Calcular rota</button>
+    </div>
+
+    <div class="painel">
+      <h2>Restrições</h2>
+      <div class="linha">
+        <div><label for="maxKm">Máx. km</label><input id="maxKm" type="number" min="0" step="1"></div>
+        <div><label for="maxMin">Máx. min</label><input id="maxMin" type="number" min="0" step="1"></div>
+        <div><label for="maxCusto">Máx. R$</label><input id="maxCusto" type="number" min="0" step="1"></div>
+      </div>
+      <label>Localidades bloqueadas</label>
+      <div id="tagsCidades" class="tags"></div>
+      <label>Trechos bloqueados</label>
+      <div id="tagsTrechos" class="tags"></div>
+      <p class="dica">No mapa: clique numa <b>estrada</b> para bloquear/liberar o trecho e clique numa <b>cidade</b> para
+        selecionar origem e destino. Use <b>Shift+clique</b> na cidade para bloquear/liberar.
+        Clique numa etiqueta acima para remover o bloqueio.</p>
+      <button class="sec" id="limpar">Limpar restrições</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="painel">
+      <svg id="mapa" viewBox="0 0 820 640" role="img" aria-label="Mapa esquemático da rede de estradas"></svg>
+    </div>
+    <div class="painel" id="resultado">
+      <h2>Resultado</h2>
+      <p class="vazio">Escolha origem, destino e clique em &ldquo;Calcular rota&rdquo;.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const W = 820, H = 640, PAD = 55;
+  const estado = {
+    localidades: [], estradas: [],
+    origem: null, destino: null, proximo: 'origem',
+    cidadesBloq: new Set(), trechosBloq: new Set(),
+    resposta: null, rotaAtiva: 0
+  };
+  const $ = id => document.getElementById(id);
+  const chaveTrecho = (a, b) => [a, b].sort((x, y) => x.localeCompare(y, 'pt')).join('|');
+  const fmtTempo = min => Math.floor(min / 60) + 'h' + String(min % 60).padStart(2, '0') + 'min';
+  const fmtNum = (n, d) => n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const el = (nome, attrs = {}, texto) => {
+    const e = document.createElementNS(svgNS, nome);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (texto !== undefined) e.textContent = texto;
+    return e;
+  };
+
+  async function iniciar() {
+    try {
+      const [l, e] = await Promise.all([
+        fetch('/api/localidades').then(r => r.json()),
+        fetch('/api/estradas').then(r => r.json())
+      ]);
+      estado.localidades = l; estado.estradas = e;
+    } catch (err) {
+      $('resultado').innerHTML = '<h2>Resultado</h2><p class="erro">Não foi possível carregar o grafo da API.</p>';
+      return;
+    }
+    for (const id of ['origem', 'destino']) {
+      const sel = $(id);
+      estado.localidades.forEach(c => sel.add(new Option(c.nome + '/' + c.uf, c.nome)));
+      sel.addEventListener('change', () => { estado[id] = sel.value; desenhar(); });
+    }
+    estado.origem = $('origem').value = 'Uberlândia';
+    estado.destino = $('destino').value = 'Goiânia';
+    $('calcular').addEventListener('click', calcular);
+    $('limpar').addEventListener('click', () => {
+      estado.cidadesBloq.clear(); estado.trechosBloq.clear();
+      ['maxKm', 'maxMin', 'maxCusto'].forEach(i => $(i).value = '');
+      atualizar();
+    });
+    atualizar();
+  }
+
+  function atualizar() { desenhar(); desenharTags(); }
+
+  // ---------------------------------------------------------------- mapa
+  function projetar() {
+    const lats = estado.localidades.map(c => c.latitude), lons = estado.localidades.map(c => c.longitude);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats), minLon = Math.min(...lons), maxLon = Math.max(...lons);
+    const pos = {};
+    for (const c of estado.localidades) {
+      pos[c.nome] = {
+        x: PAD + (c.longitude - minLon) / (maxLon - minLon) * (W - 2 * PAD - 60),
+        y: PAD + (maxLat - c.latitude) / (maxLat - minLat) * (H - 2 * PAD)
+      };
+    }
+    return pos;
+  }
+
+  function desenhar() {
+    const svg = $('mapa');
+    svg.replaceChildren();
+    const pos = projetar();
+    const rota = rotaAtual();
+    const trechosRota = new Set(), cidadesRota = new Set(rota ? rota.localidades : []);
+    if (rota) for (let i = 0; i < rota.localidades.length - 1; i++) trechosRota.add(chaveTrecho(rota.localidades[i], rota.localidades[i + 1]));
+
+    for (const e of estado.estradas) {
+      const k = chaveTrecho(e.origem, e.destino), a = pos[e.origem], b = pos[e.destino];
+      const classe = 'estrada' + (estado.trechosBloq.has(k) ? ' bloq' : '') + (trechosRota.has(k) ? ' rota' : '');
+      svg.appendChild(el('line', { class: classe, x1: a.x, y1: a.y, x2: b.x, y2: b.y }));
+      const toque = el('line', { class: 'toque', x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+      const t = el('title', {}, `${e.origem} - ${e.destino}: ${fmtNum(e.distanciaKm, 0)} km, ${fmtTempo(e.tempoMin)}, R$ ${fmtNum(e.custoReais, 2)}`);
+      toque.appendChild(t);
+      toque.addEventListener('click', () => {
+        estado.trechosBloq.has(k) ? estado.trechosBloq.delete(k) : estado.trechosBloq.add(k);
+        atualizar();
+      });
+      svg.appendChild(toque);
+    }
+
+    for (const c of estado.localidades) {
+      const p = pos[c.nome];
+      let classe = 'no';
+      if (cidadesRota.has(c.nome)) classe += ' rota';
+      if (c.nome === estado.origem) classe += ' origem';
+      else if (c.nome === estado.destino) classe += ' destino';
+      if (estado.cidadesBloq.has(c.nome)) classe += ' bloq';
+      const no = el('circle', { class: classe, cx: p.x, cy: p.y, r: 8 });
+      no.appendChild(el('title', {}, c.nome + '/' + c.uf));
+      no.addEventListener('click', ev => cliqueCidade(ev, c.nome));
+      svg.appendChild(no);
+      svg.appendChild(el('text', { x: p.x + 11, y: p.y + 4 }, c.nome));
+    }
+  }
+
+  function cliqueCidade(ev, nome) {
+    if (ev.shiftKey) {
+      estado.cidadesBloq.has(nome) ? estado.cidadesBloq.delete(nome) : estado.cidadesBloq.add(nome);
+    } else if (estado.proximo === 'origem') {
+      estado.origem = nome; estado.proximo = 'destino';
+    } else {
+      estado.destino = nome; estado.proximo = 'origem';
+    }
+    $('origem').value = estado.origem; $('destino').value = estado.destino;
+    atualizar();
+  }
+
+  function desenharTags() {
+    const cid = $('tagsCidades'), tre = $('tagsTrechos');
+    cid.replaceChildren(); tre.replaceChildren();
+    const nova = (pai, texto, aoClicar) => {
+      const s = document.createElement('span');
+      s.className = 'tag'; s.textContent = texto + ' ✕'; s.title = 'Remover bloqueio';
+      s.addEventListener('click', aoClicar); pai.appendChild(s);
+    };
+    if (!estado.cidadesBloq.size) cid.innerHTML = '<span class="vazio">nenhuma</span>';
+    if (!estado.trechosBloq.size) tre.innerHTML = '<span class="vazio">nenhum</span>';
+    estado.cidadesBloq.forEach(c => nova(cid, c, () => { estado.cidadesBloq.delete(c); atualizar(); }));
+    estado.trechosBloq.forEach(k => nova(tre, k.replace('|', ' – '), () => { estado.trechosBloq.delete(k); atualizar(); }));
+  }
+
+  // ------------------------------------------------------------- consulta
+  const numOuNulo = id => { const v = $(id).value; return v === '' ? null : Number(v); };
+
+  async function calcular() {
+    const corpo = {
+      origem: $('origem').value, destino: $('destino').value,
+      algoritmo: document.querySelector('input[name=alg]:checked').value,
+      criterio: document.querySelector('input[name=crit]:checked').value,
+      maximo: 10,
+      restricoes: {
+        localidadesBloqueadas: [...estado.cidadesBloq],
+        trechosBloqueados: [...estado.trechosBloq].map(k => k.split('|')),
+        distanciaMaximaKm: numOuNulo('maxKm'),
+        tempoMaximoMin: numOuNulo('maxMin'),
+        custoMaximo: numOuNulo('maxCusto')
+      }
+    };
+    try {
+      const r = await fetch('/api/rotas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+      const json = await r.json();
+      if (!r.ok) { estado.resposta = null; mostrarErro(json.erro || 'Erro ao calcular a rota.'); desenhar(); return; }
+      estado.resposta = json; estado.rotaAtiva = 0;
+      mostrarResultado(); desenhar();
+    } catch (e) {
+      mostrarErro('Falha de comunicação com a API.');
+    }
+  }
+
+  function rotaAtual() {
+    const r = estado.resposta;
+    return r && r.rotas.length ? r.rotas[estado.rotaAtiva] : null;
+  }
+
+  function mostrarErro(msg) {
+    const box = $('resultado'); box.replaceChildren();
+    const h = document.createElement('h2'); h.textContent = 'Resultado';
+    const p = document.createElement('p'); p.className = 'erro'; p.textContent = msg;
+    box.append(h, p);
+  }
+
+  function blocoRota(r) {
+    const d = document.createElement('div');
+    const c = document.createElement('div'); c.className = 'caminho'; c.textContent = r.localidades.join(' → ');
+    const res = document.createElement('div'); res.className = 'resumo';
+    [[fmtNum(r.distanciaKm, 1), 'km'], [fmtTempo(r.tempoMin), 'tempo'], ['R$ ' + fmtNum(r.custoReais, 2), 'custo'], [r.trechos, 'trechos']]
+      .forEach(([v, rot]) => { const x = document.createElement('div'); x.innerHTML = '<b></b><span></span>'; x.firstChild.textContent = v; x.lastChild.textContent = rot; res.appendChild(x); });
+    d.append(c, res);
+    return d;
+  }
+
+  function mostrarResultado() {
+    const box = $('resultado'), r = estado.resposta;
+    box.replaceChildren();
+    const h = document.createElement('h2');
+    h.textContent = 'Resultado — ' + ({ DIJKSTRA: 'Dijkstra', BFS: 'Busca em Largura', DFS: 'Busca em Profundidade' }[r.algoritmo]);
+    box.appendChild(h);
+    if (!r.encontrada) {
+      const p = document.createElement('p'); p.className = 'erro'; p.textContent = r.mensagem; box.appendChild(p);
+    } else if (r.algoritmo === 'DFS') {
+      if (r.mensagem) { const m = document.createElement('p'); m.className = 'aviso'; m.textContent = r.mensagem; box.appendChild(m); }
+      r.rotas.forEach((rota, i) => {
+        const a = blocoRota(rota); a.className = 'alt' + (i === estado.rotaAtiva ? ' ativa' : '');
+        a.addEventListener('click', () => { estado.rotaAtiva = i; mostrarResultado(); desenhar(); });
+        box.appendChild(a);
+      });
+    } else {
+      box.appendChild(blocoRota(r.rotas[0]));
+      if (r.mensagem) { const m = document.createElement('p'); m.className = 'aviso'; m.textContent = r.mensagem; box.appendChild(m); }
+    }
+    if (r.ordemVisita && r.ordemVisita.length) {
+      const t = document.createElement('div'); t.className = 'aviso'; t.style.marginTop = '10px';
+      t.textContent = 'Ordem em que o algoritmo visitou as cidades:';
+      const ol = document.createElement('ol'); ol.className = 'ordem';
+      r.ordemVisita.forEach(n => { const li = document.createElement('li'); li.textContent = n; ol.appendChild(li); });
+      box.append(t, ol);
+    }
+  }
+
+  iniciar();
+})();
+</script>
+</body>
+</html>
