@@ -11,20 +11,21 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.ToDoubleFunction;
 
 /**
  * Busca em Profundidade (DFS), em três usos:
  *
  * <ol>
  *   <li>{@link #buscar}: DFS clássica, com vetor de visitados global. Acha <i>um</i> caminho
- *       (não necessariamente o melhor). O(V + E).</li>
+ *       (não necessariamente o melhor) em O(V + E).</li>
  *   <li>{@link #todosOsCaminhos}: DFS com <b>backtracking</b>. Ao voltar de um vértice ele é
  *       "desmarcado", o que permite enumerar todos os caminhos simples (sem repetir vértice)
  *       entre origem e destino — as rotas alternativas. No pior caso é exponencial.</li>
- *   <li>{@link #melhorRotaComLimites}: enumeração com poda (<i>branch and bound</i>). Usada
- *       quando o menor caminho de Dijkstra estoura algum limite de distância/tempo/custo,
- *       problema conhecido como "caminho mínimo com restrição de recurso" (NP-difícil em
- *       geral; viável aqui por causa do tamanho da rede).</li>
+ *   <li>{@link #melhorRotaComLimites} e {@link #menosTrechosComLimites}: enumeração com poda
+ *       (<i>branch and bound</i>), usadas quando existem limites de distância, tempo ou custo.
+ *       É o problema do "caminho mínimo com restrição de recurso" (NP-difícil em geral; viável
+ *       aqui por causa do tamanho da rede).</li>
  * </ol>
  *
  * A pilha de chamadas da recursão faz o papel da pilha (LIFO) da DFS.
@@ -36,6 +37,15 @@ public final class BuscaProfundidade {
 
     // ------------------------------------------------------------ 1) DFS clássica
 
+    /**
+     * DFS clássica: devolve o primeiro caminho encontrado e a ordem de visita.
+     *
+     * <p><b>Atenção:</b> respeita bloqueios de localidade e de trecho, mas <b>não</b> os limites
+     * de distância, tempo e custo. O vetor de visitados é global — uma vez que um vértice é
+     * marcado, ele não volta a ser explorado —, então não há como desfazer uma escolha que
+     * estourou um limite. Respeitar limites exige backtracking: veja {@link #todosOsCaminhos}
+     * e {@link #menosTrechosComLimites}. O {@code Planejador} cuida de escolher o método certo.
+     */
     public static ResultadoBusca buscar(Grafo grafo, int origem, int destino, Restricoes restricoes) {
         grafo.localidade(origem);
         grafo.localidade(destino);
@@ -81,6 +91,10 @@ public final class BuscaProfundidade {
     /**
      * Enumera caminhos simples entre origem e destino que respeitem as restrições
      * (bloqueios e limites), parando após {@code maximo} rotas.
+     *
+     * <p>A ordem em que os caminhos saem é a da DFS, não a de qualidade: quem precisa dos
+     * melhores primeiro deve ordenar depois, ciente de que a ordenação só é global enquanto
+     * o teto {@code maximo} não for atingido.
      */
     public static List<Rota> todosOsCaminhos(Grafo grafo, int origem, int destino,
                                              Restricoes restricoes, int maximo) {
@@ -128,23 +142,42 @@ public final class BuscaProfundidade {
         noCaminho[u] = false; // backtracking
     }
 
-    // ------------------------------------------- 3) melhor rota com limites (poda)
+    // ------------------------------------------- 3) otimização com limites (poda)
 
     /** Melhor rota no critério dado, entre as que respeitam bloqueios e limites. */
     public static ResultadoBusca melhorRotaComLimites(Grafo grafo, int origem, int destino,
                                                      Criterio criterio, Restricoes restricoes) {
+        return otimizar(grafo, origem, destino, criterio::peso, restricoes,
+                "Busca em profundidade com poda (branch and bound).");
+    }
+
+    /**
+     * Rota com o <b>menor número de trechos</b> entre as que respeitam bloqueios e limites.
+     *
+     * <p>É a versão da pergunta da BFS para quando há limites. A BFS devolve uma rota de
+     * número mínimo de trechos, mas não escolhe <i>qual</i> delas: se aquela violar um limite,
+     * pode existir outra, do mesmo tamanho, que caiba. Este método busca entre todas.
+     */
+    public static ResultadoBusca menosTrechosComLimites(Grafo grafo, int origem, int destino,
+                                                       Restricoes restricoes) {
+        return otimizar(grafo, origem, destino, aresta -> 1.0, restricoes,
+                "Busca em profundidade com poda, minimizando o número de trechos.");
+    }
+
+    private static ResultadoBusca otimizar(Grafo grafo, int origem, int destino,
+                                           ToDoubleFunction<Aresta> peso, Restricoes restricoes,
+                                           String observacao) {
         grafo.localidade(origem);
         grafo.localidade(destino);
 
         if (!restricoes.permiteLocalidade(origem) || !restricoes.permiteLocalidade(destino)) {
-            return ResultadoBusca.de(Optional.empty(), List.of());
+            return new ResultadoBusca(Optional.empty(), List.of(), observacao);
         }
         Melhor melhor = new Melhor();
         boolean[] noCaminho = new boolean[grafo.numeroLocalidades()];
-        ramificar(grafo, origem, origem, destino, criterio, restricoes, noCaminho, new ArrayDeque<>(),
+        ramificar(grafo, origem, origem, destino, peso, restricoes, noCaminho, new ArrayDeque<>(),
                 0, 0, 0, 0, melhor);
-        return new ResultadoBusca(Optional.ofNullable(melhor.rota), List.of(),
-                "Busca em profundidade com poda (branch and bound).");
+        return new ResultadoBusca(Optional.ofNullable(melhor.rota), List.of(), observacao);
     }
 
     private static final class Melhor {
@@ -152,8 +185,9 @@ public final class BuscaProfundidade {
         Rota rota;
     }
 
-    private static void ramificar(Grafo grafo, int origem, int u, int destino, Criterio criterio,
-                                  Restricoes restricoes, boolean[] noCaminho, Deque<Aresta> caminho,
+    private static void ramificar(Grafo grafo, int origem, int u, int destino,
+                                  ToDoubleFunction<Aresta> peso, Restricoes restricoes,
+                                  boolean[] noCaminho, Deque<Aresta> caminho,
                                   double km, int minutos, double reais, double valorAtual, Melhor melhor) {
         if (valorAtual >= melhor.valor) {
             return; // poda: já existe rota melhor ou igual
@@ -176,8 +210,8 @@ public final class BuscaProfundidade {
                 continue;
             }
             caminho.addLast(aresta);
-            ramificar(grafo, origem, v, destino, criterio, restricoes, noCaminho, caminho,
-                    novoKm, novoMin, novoCusto, valorAtual + aresta.peso(criterio), melhor);
+            ramificar(grafo, origem, v, destino, peso, restricoes, noCaminho, caminho,
+                    novoKm, novoMin, novoCusto, valorAtual + peso.applyAsDouble(aresta), melhor);
             caminho.removeLast();
         }
         noCaminho[u] = false;

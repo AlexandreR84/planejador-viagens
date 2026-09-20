@@ -49,12 +49,45 @@ class PlanejadorTest {
     }
 
     @Test
-    void bfsIndicaQuandoARotaComMenosTrechosUltrapassaLimites() {
+    void bfsSemNenhumaRotaDentroDosLimitesInformaNaObservacao() {
+        // Nenhum caminho A-D cabe em 10 km (o mais curto tem 20).
         Planejador p = new Planejador(GrafosDeTeste.losango());
         ResultadoBusca res = p.menosTrechos("A", "D", p.novasRestricoes().distanciaMaxima(10.0));
 
         assertFalse(res.encontrada());
         assertNotNull(res.observacao());
+    }
+
+    @Test
+    void bfsTrocaDeRotaQuandoARotaEncontradaVioloLimiteMasOutraDoMesmoTamanhoCabe() {
+        // Caminhos A-D de 2 trechos: A-B-D (R$10), A-C-D (R$8) e A-E-D (R$6).
+        // Com teto de R$ 8, a resposta certa ainda tem 2 trechos — não é "sem rota".
+        Planejador p = new Planejador(GrafosDeTeste.losango());
+        ResultadoBusca res = p.menosTrechos("A", "D", p.novasRestricoes().custoMaximo(8.0));
+
+        Rota rota = res.rota().orElseThrow();
+        assertEquals(2, rota.trechos());
+        assertTrue(rota.custoReais() <= 8.0);
+    }
+
+    @Test
+    void primeiroCaminhoRespeitaOsLimites() {
+        // A DFS clássica ignora limites; o Planejador precisa cobrir essa lacuna.
+        Planejador p = new Planejador(GrafosDeTeste.losango());
+        Restricoes r = p.novasRestricoes().custoMaximo(7.0);
+        ResultadoBusca res = p.primeiroCaminho("A", "D", r);
+
+        assertTrue(r.atende(res.rota().orElseThrow()));
+        assertFalse(res.ordemVisita().isEmpty(), "a ordem de visita da DFS continua disponível");
+    }
+
+    @Test
+    void primeiroCaminhoSemLimitesContinuaSendoADfsClassica() {
+        Planejador p = new Planejador(GrafosDeTeste.losango());
+        ResultadoBusca res = p.primeiroCaminho("A", "D", p.novasRestricoes());
+
+        assertEquals(null, res.observacao());
+        assertTrue(res.encontrada());
     }
 
     @Test
@@ -148,6 +181,20 @@ class PlanejadorTest {
 
         // Sem a estrada direta: Uberlândia -> Monte Carmelo -> Patrocínio -> Araxá -> Uberaba (385 km)
         assertEquals(List.of("Uberlândia", "Monte Carmelo", "Patrocínio", "Araxá", "Uberaba"), nomes(rota));
+    }
+
+    @Test
+    void bfsNaRedeRealEscolheAIrmaQueCabeNoLimiteEmVezDeDesistir() {
+        // Uberlândia -> Frutal tem 2 trechos no mínimo. A BFS pode encontrar a rota por
+        // Uberaba (mais cara); com teto de R$ 150 a resposta certa é a rota por Ituiutaba,
+        // também de 2 trechos. Antes da correção o sistema respondia "sem rota".
+        Restricoes r = planejador.novasRestricoes().custoMaximo(150.0);
+        ResultadoBusca res = planejador.menosTrechos("Uberlândia", "Frutal", r);
+
+        Rota rota = res.rota().orElseThrow();
+        assertEquals(List.of("Uberlândia", "Ituiutaba", "Frutal"), nomes(rota));
+        assertEquals(2, rota.trechos());
+        assertTrue(rota.custoReais() <= 150.0);
     }
 
     @Test
